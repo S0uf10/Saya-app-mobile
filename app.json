@@ -17,7 +17,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.sayacard.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Saya Card a besoin d'accéder à la caméra pour scanner les QR codes de vos clients."
+        "NSCameraUsageDescription": "Saya Card a besoin d'accéder à la caméra pour scanner les QR codes de vos clients.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
