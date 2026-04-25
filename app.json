@@ -1,0 +1,70 @@
+{
+  "expo": {
+    "name": "Saya Card",
+    "slug": "saya-card",
+    "scheme": "sayacard",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4c1d95"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.sayacard.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Saya Card a besoin d'accéder à la caméra pour scanner les QR codes de vos clients."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#4c1d95"
+      },
+      "package": "com.sayacard.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permettre à Saya Card d'accéder à la caméra pour scanner les QR codes."
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#7c3aed",
+          "sounds": []
+        }
+      ],
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d64ddcc6-ab98-411e-8176-eb69915d68d1"
+      }
+    },
+    "owner": "soufeli"
+  }
+}
