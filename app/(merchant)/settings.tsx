@@ -107,6 +107,26 @@ export default function SettingsScreen() {
     }
   }
 
+  async function handleManageSubscription() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const res = await fetch('https://www.saya-card.com/api/stripe/portal', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      const data = await res.json()
+      if (data.url) {
+        Linking.openURL(data.url)
+      } else {
+        // Pas de stripe_customer_id → pas encore abonné → page d'abonnement
+        Linking.openURL('https://www.saya-card.com/onboarding/subscribe')
+      }
+    } catch {
+      Linking.openURL('https://www.saya-card.com/onboarding/subscribe')
+    }
+  }
+
   async function handleSignOut() {
     Alert.alert('Déconnexion', 'Êtes-vous sûr de vouloir vous déconnecter ?', [
       { text: 'Annuler', style: 'cancel' },
@@ -360,7 +380,7 @@ export default function SettingsScreen() {
             </View>
             <TouchableOpacity
               style={styles.manageBtn}
-              onPress={() => Linking.openURL('https://www.saya-card.com/onboarding/subscribe')}
+              onPress={handleManageSubscription}
               activeOpacity={0.75}
             >
               <Text style={styles.manageBtnText}>Gérer mon abonnement</Text>

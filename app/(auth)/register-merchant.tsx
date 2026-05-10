@@ -42,7 +42,17 @@ export default function RegisterMerchantScreen() {
       if (authError) throw authError
       if (!authData.user) throw new Error('Création du compte échouée.')
 
-      const { error: merchantError } = await supabase.from('merchants').insert({
+      // Email confirmation required — session is null until confirmed
+      if (!authData.session) {
+        Alert.alert(
+          'Vérifiez votre email 📬',
+          'Un lien de confirmation a été envoyé à ' + email + '. Cliquez dessus pour activer votre compte, puis connectez-vous.',
+          [{ text: 'Se connecter', onPress: () => router.replace('/(auth)/sign-in') }]
+        )
+        return
+      }
+
+      const { error: merchantError } = await supabase.from('merchants').upsert({
         user_id: authData.user.id,
         name: businessName,
         email,
@@ -56,7 +66,8 @@ export default function RegisterMerchantScreen() {
           { label: 'Repas', points: 5 },
         ],
         subscription_status: 'inactive',
-      })
+      }, { onConflict: 'user_id' })
+
       if (merchantError) throw merchantError
 
       router.replace('/(merchant)/dashboard')

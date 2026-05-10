@@ -54,8 +54,18 @@ export default function RegisterClientScreen() {
       if (authError) throw authError
       if (!authData.user) throw new Error('Création du compte échouée.')
 
+      // Email confirmation required — session is null until confirmed
+      if (!authData.session) {
+        Alert.alert(
+          'Vérifiez votre email 📬',
+          'Un lien de confirmation a été envoyé à ' + email + '. Cliquez dessus pour activer votre compte, puis connectez-vous.',
+          [{ text: 'Se connecter', onPress: () => router.replace('/(auth)/sign-in') }]
+        )
+        return
+      }
+
       const qrToken = generateUUID()
-      const { error: clientError } = await supabase.from('clients').insert({
+      const { error: clientError } = await supabase.from('clients').upsert({
         user_id: authData.user.id,
         first_name: firstName,
         last_name: lastName,
@@ -65,10 +75,9 @@ export default function RegisterClientScreen() {
         qr_token: qrToken,
         current_level: 1,
         scans_last_30d: 0,
-        marketing_consent: false,
         accepted_terms: true,
         accepted_terms_at: new Date().toISOString(),
-      })
+      }, { onConflict: 'user_id' })
       if (clientError) throw clientError
 
       router.replace('/(client)/dashboard')

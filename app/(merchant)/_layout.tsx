@@ -1,9 +1,21 @@
-import { Tabs } from 'expo-router'
+import { useEffect } from 'react'
+import { Tabs, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { Platform } from 'react-native'
 import { colors } from '../../src/theme'
+import { useAuth } from '../../src/context/AuthContext'
 
 export default function MerchantLayout() {
+  const { merchant, loading } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (loading) return
+    if (merchant && merchant.subscription_status !== 'active') {
+      router.replace('/subscribe')
+    }
+  }, [merchant?.subscription_status, loading])
+
   return (
     <Tabs
       screenOptions={{
