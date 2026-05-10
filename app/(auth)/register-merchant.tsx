@@ -8,6 +8,7 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Linking,
   StyleSheet,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -146,7 +147,13 @@ export default function RegisterMerchantScreen() {
               </View>
 
               <Text style={styles.terms}>
-                En créant un compte, vous acceptez nos conditions d'utilisation.
+                En créant un compte, vous acceptez nos{' '}
+                <Text style={styles.termsLink} onPress={() => Linking.openURL('https://www.saya-card.com/cgu')}>
+                  conditions d'utilisation
+                </Text>{' '}et notre{' '}
+                <Text style={styles.termsLink} onPress={() => Linking.openURL('https://www.saya-card.com/privacy')}>
+                  politique de confidentialité
+                </Text>.
               </Text>
             </View>
           </View>
@@ -230,5 +237,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 14,
     lineHeight: 17,
+  },
+  termsLink: {
+    color: '#c4b5fd',
+    textDecorationLine: 'underline',
   },
 })

@@ -142,6 +142,30 @@ export default function SettingsScreen() {
     ])
   }
 
+  async function handleDeleteAccount() {
+    Alert.alert(
+      'Supprimer le compte',
+      'Cette action est irréversible. Votre espace commerçant et toutes les données associées seront supprimés définitivement.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase.functions.invoke('delete-account')
+              if (error) throw error
+              await signOut()
+              router.replace('/(auth)/login')
+            } catch {
+              Alert.alert('Erreur', 'Impossible de supprimer le compte. Contactez contact@saya-card.com.')
+            }
+          },
+        },
+      ]
+    )
+  }
+
   if (!merchant) return null
 
   const planConfig: Record<string, { label: string; color: 'blue' | 'purple' | 'amber' }> = {
@@ -418,6 +442,16 @@ export default function SettingsScreen() {
             </Text>
             {signingOut && <ActivityIndicator size="small" color={colors.danger} />}
           </TouchableOpacity>
+
+          {/* ── Suppression de compte ─────────── */}
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={handleDeleteAccount}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="trash-outline" size={18} color={colors.danger} />
+            <Text style={styles.deleteBtnText}>Supprimer mon compte</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -634,6 +668,24 @@ const styles = StyleSheet.create({
     fontSize: fontSize.base,
     fontWeight: fontWeight.medium,
     color: colors.danger,
+    flex: 1,
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.light.card,
+    borderRadius: radius['2xl'],
+    borderWidth: 1.5,
+    borderColor: 'rgba(220,38,38,0.25)',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginTop: 8,
+  },
+  deleteBtnText: {
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.medium,
+    color: '#dc2626',
     flex: 1,
   },
 })

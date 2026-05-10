@@ -16,8 +16,17 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.sayacard.app",
+      "buildNumber": "1",
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          }
+        ]
+      },
       "infoPlist": {
-        "NSCameraUsageDescription": "Saya Card a besoin d'accéder à la caméra pour scanner les QR codes de vos clients.",
+        "NSCameraUsageDescription": "Saya Card utilise la caméra pour scanner les QR codes de fidélité de vos clients.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -27,10 +36,11 @@
         "backgroundColor": "#4c1d95"
       },
       "package": "com.sayacard.app",
+      "versionCode": 1,
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.POST_NOTIFICATIONS",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "web": {

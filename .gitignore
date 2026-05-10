@@ -27,3 +27,11 @@ yarn-error.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# Sensitive credentials — never commit
+google-services.json
+google-service-account.json
+saya-ca-ad09faa1df46.json
+*.p8
+*.p12
+*.mobileprovision
