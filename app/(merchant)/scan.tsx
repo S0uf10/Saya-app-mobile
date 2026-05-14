@@ -17,7 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { useAuth } from '../../src/context/AuthContext'
 import { supabase } from '../../src/lib/supabase'
 import { Client, LoyaltyRelation, Reward, ScanPreset } from '../../src/types'
-import { colors, gradients, radius, fontSize, fontWeight, shadows } from '../../src/theme'
+import { colors, radius, fontSize, fontWeight, shadows } from '../../src/theme'
 import { Avatar } from '../../src/components/ui/Avatar'
 import { Button } from '../../src/components/ui/Button'
 import { ProgressBar } from '../../src/components/ui/ProgressBar'
@@ -154,45 +154,36 @@ export default function ScanScreen() {
 
     setLoading(true)
     try {
-      const rel = scanData.relation
-      const newPoints = rel.current_points + total
-      const newTotal = rel.total_points_earned + total
-      const newVisits = rel.visits_count + 1
-
-      const { error: updateError } = await supabase
-        .from('loyalty_relations')
-        .update({
-          current_points: newPoints,
-          total_points_earned: newTotal,
-          visits_count: newVisits,
-          last_visit: new Date().toISOString(),
-        })
-        .eq('id', rel.id)
-      if (updateError) throw updateError
-
-      await supabase.from('scan_events').insert({
-        client_id: scanData.client.id,
-        merchant_id: merchant.id,
-        scanned_at: new Date().toISOString(),
-        points_added: total,
-        preset_labels: selectedPresets.map((p) => p.label),
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('https://www.saya-card.com/api/scan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          token: scanData.token,
+          mode: 'add_points',
+          presets_used: selectedPresets.length > 0 ? selectedPresets : undefined,
+          points_override: parseInt(manualPoints, 10) || undefined,
+        }),
       })
+      const json = await res.json()
+      if (!res.ok || !json.success) throw new Error(json.message ?? 'Erreur serveur')
 
-      await supabase.from('client_notifications').insert({
-        client_id: scanData.client.id,
-        merchant_id: merchant.id,
-        type: 'points_add',
-        points: total,
-        merchant_name: merchant.name,
-        message: `+${total} point${total > 1 ? 's' : ''} chez ${merchant.name}`,
-        is_read: false,
-      })
+      // Mise à jour du solde local pour le step use_reward
+      setScanData(prev => prev ? {
+        ...prev,
+        relation: { ...prev.relation, current_points: json.currentPoints, visits_count: json.visitsCount },
+      } : prev)
+      setSelectedPresets([])
+      setManualPoints('')
 
       setResult({
         type: 'points',
         title: 'Points ajoutés !',
         subtitle: `${scanData.client.first_name} ${scanData.client.last_name}`,
-        detail: `${newPoints} point${newPoints > 1 ? 's' : ''} au total`,
+        detail: `+${json.pointsAdded} pt${json.pointsAdded > 1 ? 's' : ''} · Solde : ${json.currentPoints} pts`,
       })
       setStep('result')
     } catch (err: any) {
@@ -216,30 +207,27 @@ export default function ScanScreen() {
 
     setLoading(true)
     try {
-      const { error } = await supabase
-        .from('loyalty_relations')
-        .update({
-          current_points: rel.current_points - reward.points_cost,
-          last_visit: new Date().toISOString(),
-        })
-        .eq('id', rel.id)
-      if (error) throw error
-
-      await supabase.from('client_notifications').insert({
-        client_id: scanData.client.id,
-        merchant_id: merchant.id,
-        type: 'reward_used',
-        points: reward.points_cost,
-        merchant_name: merchant.name,
-        message: `Récompense "${reward.name}" utilisée chez ${merchant.name}`,
-        is_read: false,
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('https://www.saya-card.com/api/scan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          token: scanData.token,
+          mode: 'use_reward',
+          reward_id: reward.id,
+        }),
       })
+      const json = await res.json()
+      if (!res.ok || !json.success) throw new Error(json.message ?? 'Erreur serveur')
 
       setResult({
         type: 'reward',
         title: 'Récompense appliquée !',
         subtitle: reward.name,
-        detail: `−${reward.points_cost} pts · Solde : ${rel.current_points - reward.points_cost} pts`,
+        detail: `−${reward.points_cost} pts · Solde : ${json.currentPoints} pts`,
       })
       setStep('result')
     } catch (err: any) {
@@ -573,24 +561,18 @@ export default function ScanScreen() {
         iconName: 'checkmark-circle' as const,
         iconColor: '#16a34a',
         iconBg: 'rgba(22,163,74,0.10)',
-        btnLabel: 'Nouveau scan',
-        btnVariant: 'primary' as const,
       },
       reward: {
         bg: ['#fffbeb', '#fef3c7'] as const,
         iconName: 'gift' as const,
         iconColor: '#d97706',
         iconBg: 'rgba(217,119,6,0.10)',
-        btnLabel: 'Nouveau scan',
-        btnVariant: 'primary' as const,
       },
       error: {
         bg: ['#fff1f2', '#ffe4e6'] as const,
         iconName: 'close-circle' as const,
         iconColor: '#dc2626',
         iconBg: 'rgba(220,38,38,0.10)',
-        btnLabel: 'Réessayer',
-        btnVariant: 'primary' as const,
       },
     }
     const cfg = configs[result.type]
@@ -604,9 +586,32 @@ export default function ScanScreen() {
           <Text style={styles.resultTitle}>{result.title}</Text>
           <Text style={styles.resultSubtitle}>{result.subtitle}</Text>
           <Text style={styles.resultDetail}>{result.detail}</Text>
-          <View style={styles.resultBtn}>
+
+          <View style={styles.resultActions}>
+            {result.type === 'points' && rewards.length > 0 && (
+              <TouchableOpacity
+                style={styles.resultSecondaryBtn}
+                onPress={() => setStep('use_reward')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="gift-outline" size={16} color={colors.warning} style={{ marginRight: 6 }} />
+                <Text style={styles.resultSecondaryBtnText}>Appliquer une récompense</Text>
+              </TouchableOpacity>
+            )}
+
+            {result.type === 'reward' && (
+              <TouchableOpacity
+                style={styles.resultSecondaryBtn}
+                onPress={() => setStep('choice')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="person-outline" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+                <Text style={[styles.resultSecondaryBtnText, { color: colors.primary }]}>Retour au client</Text>
+              </TouchableOpacity>
+            )}
+
             <Button onPress={resetScan} size="lg">
-              {cfg.btnLabel}
+              {result.type === 'error' ? 'Réessayer' : 'Scanner un autre client'}
             </Button>
           </View>
         </SafeAreaView>
@@ -1076,4 +1081,23 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   resultBtn: { width: '100%' },
+  resultActions: {
+    width: '100%',
+    gap: 12,
+  },
+  resultSecondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.warningBorder,
+    borderRadius: radius['2xl'],
+    paddingVertical: 15,
+    backgroundColor: colors.warningLight,
+  },
+  resultSecondaryBtnText: {
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.bold,
+    color: colors.warningText,
+  },
 })
