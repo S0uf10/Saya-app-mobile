@@ -51,6 +51,7 @@ export interface Merchant {
   reward_label: string
   scan_presets: ScanPreset[] | null
   address: string | null
+  category: string | null
   opening_hours: OpeningHours | null
   subscription_plan: 'starter' | 'business' | 'premium' | null
   subscription_status: 'active' | 'inactive' | 'past_due' | 'canceled'

@@ -9,6 +9,7 @@ import {
   Linking,
   Alert,
   ActivityIndicator,
+  Modal,
   StyleSheet,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -21,8 +22,35 @@ import { colors, radius, fontSize, fontWeight, shadows } from '../../src/theme'
 import { Avatar } from '../../src/components/ui/Avatar'
 import { Badge } from '../../src/components/ui/Badge'
 
+const CATEGORIES = [
+  'Restaurant / Snack',
+  'Café / Boulangerie',
+  'Bar / Lounge',
+  'Épicerie / Alimentation',
+  'Coiffeur / Barbier',
+  'Beauté / Esthétique',
+  'Spa / Bien-être',
+  'Sport / Fitness',
+  'Mode / Vêtements',
+  'Chaussures / Accessoires',
+  'Librairie / Papeterie',
+  'Santé / Pharmacie',
+  'Services',
+  'Autre',
+]
+
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
 type DayKey = (typeof DAY_KEYS)[number]
+
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const MINUTES = ['00', '15', '30', '45']
+
+type TimeModalState = {
+  day: DayKey
+  field: 'open' | 'close'
+  hour: string
+  minute: string
+}
 
 const DAY_LABELS: Record<DayKey, string> = {
   mon: 'Lundi', tue: 'Mardi', wed: 'Mercredi',
@@ -63,6 +91,9 @@ export default function SettingsScreen() {
     () => merchant?.scan_presets ?? []
   )
   const [address, setAddress] = useState(merchant?.address ?? '')
+  const [category, setCategory] = useState<string | null>(merchant?.category ?? null)
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false)
+  const [timeModal, setTimeModal] = useState<TimeModalState | null>(null)
 
   const updateDay = useCallback(
     (day: DayKey, field: 'closed' | 'open' | 'close', value: string | boolean) => {
@@ -73,6 +104,22 @@ export default function SettingsScreen() {
     },
     []
   )
+
+  function openTimePicker(day: DayKey, field: 'open' | 'close') {
+    const raw = hours[day][field]
+    const [h, m] = raw.split(':')
+    const mNum = parseInt(m ?? '0', 10)
+    const minute = MINUTES.reduce((prev, curr) =>
+      Math.abs(parseInt(curr, 10) - mNum) < Math.abs(parseInt(prev, 10) - mNum) ? curr : prev
+    , '00')
+    setTimeModal({ day, field, hour: h ?? '09', minute })
+  }
+
+  function confirmTime() {
+    if (!timeModal) return
+    updateDay(timeModal.day, timeModal.field, `${timeModal.hour}:${timeModal.minute}`)
+    setTimeModal(null)
+  }
 
   const addPreset = () =>
     setPresets((p) => [...p, { label: '', points: 10 }])
@@ -94,6 +141,7 @@ export default function SettingsScreen() {
           opening_hours: hours,
           scan_presets: validPresets,
           address: address.trim() || null,
+          category: category || null,
         })
         .eq('id', merchant.id)
 
@@ -238,6 +286,23 @@ export default function SettingsScreen() {
             <Text style={styles.inputHint}>Visible par vos clients pour s'y rendre.</Text>
           </View>
 
+          {/* ── Catégorie ─────────────────────── */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Catégorie de commerce</Text>
+            <TouchableOpacity
+              style={styles.categoryBtn}
+              onPress={() => setCategoryModalOpen(true)}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="pricetag-outline" size={15} color={category ? colors.primary : colors.light.subtle} />
+              <Text style={[styles.categoryBtnText, !category && styles.categoryBtnPlaceholder]}>
+                {category ?? 'Sélectionner une catégorie'}
+              </Text>
+              <Ionicons name="chevron-down" size={15} color={colors.light.subtle} />
+            </TouchableOpacity>
+            <Text style={styles.inputHint}>Aide vos clients à vous trouver dans la section Découvrir.</Text>
+          </View>
+
           {/* ── Horaires ──────────────────────── */}
           <View style={styles.card}>
             <TouchableOpacity
@@ -281,28 +346,26 @@ export default function SettingsScreen() {
                         <View style={styles.timeRow}>
                           <View style={styles.timeField}>
                             <Text style={styles.timeLabel}>Ouverture</Text>
-                            <TextInput
-                              style={styles.timeInput}
-                              value={d.open}
-                              onChangeText={(v) => updateDay(day, 'open', v)}
-                              placeholder="09:00"
-                              placeholderTextColor={colors.light.placeholder}
-                              keyboardType="numbers-and-punctuation"
-                              maxLength={5}
-                            />
+                            <TouchableOpacity
+                              style={styles.timePickerBtn}
+                              onPress={() => openTimePicker(day, 'open')}
+                              activeOpacity={0.75}
+                            >
+                              <Ionicons name="time-outline" size={13} color={colors.primary} />
+                              <Text style={styles.timePickerBtnText}>{d.open}</Text>
+                            </TouchableOpacity>
                           </View>
                           <Ionicons name="arrow-forward" size={14} color={colors.light.subtle} style={{ marginTop: 20 }} />
                           <View style={styles.timeField}>
                             <Text style={styles.timeLabel}>Fermeture</Text>
-                            <TextInput
-                              style={styles.timeInput}
-                              value={d.close}
-                              onChangeText={(v) => updateDay(day, 'close', v)}
-                              placeholder="19:00"
-                              placeholderTextColor={colors.light.placeholder}
-                              keyboardType="numbers-and-punctuation"
-                              maxLength={5}
-                            />
+                            <TouchableOpacity
+                              style={styles.timePickerBtn}
+                              onPress={() => openTimePicker(day, 'close')}
+                              activeOpacity={0.75}
+                            >
+                              <Ionicons name="time-outline" size={13} color={colors.primary} />
+                              <Text style={styles.timePickerBtnText}>{d.close}</Text>
+                            </TouchableOpacity>
                           </View>
                         </View>
                       )}
@@ -454,6 +517,128 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* ── Category picker modal ─────────── */}
+      <Modal
+        visible={categoryModalOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCategoryModalOpen(false)}
+      >
+        <View style={styles.tpOverlay}>
+          <View style={[styles.tpCard, { paddingBottom: 48 }]}>
+            <Text style={styles.tpTitle}>Catégorie de commerce</Text>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
+              {/* Reset option */}
+              <TouchableOpacity
+                style={[styles.catOptionRow, !category && styles.catOptionRowActive]}
+                onPress={() => { setCategory(null); setCategoryModalOpen(false) }}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.catOptionText, !category && styles.catOptionTextActive]}>
+                  — Aucune catégorie —
+                </Text>
+                {!category && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+              </TouchableOpacity>
+              {CATEGORIES.map(cat => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.catOptionRow, category === cat && styles.catOptionRowActive]}
+                  onPress={() => { setCategory(cat); setCategoryModalOpen(false) }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.catOptionText, category === cat && styles.catOptionTextActive]}>
+                    {cat}
+                  </Text>
+                  {category === cat && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={[styles.tpCancelBtn, { marginTop: 16 }]}
+              onPress={() => setCategoryModalOpen(false)}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.tpCancelText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Time picker modal ─────────────── */}
+      <Modal
+        visible={!!timeModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setTimeModal(null)}
+      >
+        <View style={styles.tpOverlay}>
+          <View style={styles.tpCard}>
+            <Text style={styles.tpTitle}>
+              {timeModal?.field === 'open' ? "Heure d'ouverture" : 'Heure de fermeture'}
+            </Text>
+
+            <View style={styles.tpBody}>
+              {/* Hours grid — 6 cols × 4 rows */}
+              <View style={styles.tpCol}>
+                <Text style={styles.tpColLabel}>Heure</Text>
+                <View style={styles.tpHoursGrid}>
+                  {HOURS.map((h) => {
+                    const selected = timeModal?.hour === h
+                    return (
+                      <TouchableOpacity
+                        key={h}
+                        style={[styles.tpCell, selected && styles.tpCellSelected]}
+                        onPress={() => setTimeModal((prev) => prev ? { ...prev, hour: h } : null)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.tpCellText, selected && styles.tpCellTextSelected]}>
+                          {h}
+                        </Text>
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              </View>
+
+              <Text style={styles.tpColon}>:</Text>
+
+              {/* Minutes column */}
+              <View style={styles.tpCol}>
+                <Text style={styles.tpColLabel}>Min</Text>
+                <View style={styles.tpMinCol}>
+                  {MINUTES.map((m) => {
+                    const selected = timeModal?.minute === m
+                    return (
+                      <TouchableOpacity
+                        key={m}
+                        style={[styles.tpMinCell, selected && styles.tpCellSelected]}
+                        onPress={() => setTimeModal((prev) => prev ? { ...prev, minute: m } : null)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.tpCellText, selected && styles.tpCellTextSelected]}>
+                          {m}
+                        </Text>
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.tpFooter}>
+              <TouchableOpacity style={styles.tpCancelBtn} onPress={() => setTimeModal(null)} activeOpacity={0.75}>
+                <Text style={styles.tpCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.tpConfirmBtn} onPress={confirmTime} activeOpacity={0.8}>
+                <Text style={styles.tpConfirmText}>
+                  Confirmer {timeModal ? `${timeModal.hour}:${timeModal.minute}` : ''}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -651,6 +836,54 @@ const styles = StyleSheet.create({
     color: colors.light.text,
   },
 
+  // Category picker
+  categoryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.light.inputBorder,
+    borderRadius: radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: colors.light.bg,
+    marginTop: 8,
+  },
+  categoryBtnText: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    color: colors.light.text,
+    fontWeight: fontWeight.medium,
+  },
+  categoryBtnPlaceholder: {
+    color: colors.light.placeholder,
+    fontWeight: fontWeight.regular,
+  },
+  catOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 13,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.light.divider,
+  },
+  catOptionRowActive: {
+    backgroundColor: colors.primaryBg,
+    borderRadius: radius.md,
+    paddingHorizontal: 8,
+    borderBottomWidth: 0,
+    marginBottom: 1,
+  },
+  catOptionText: {
+    fontSize: fontSize.sm,
+    color: colors.light.text,
+  },
+  catOptionTextActive: {
+    color: colors.primary,
+    fontWeight: fontWeight.semibold,
+  },
+
   // Sign out
   signOutBtn: {
     flexDirection: 'row',
@@ -687,5 +920,142 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.medium,
     color: '#dc2626',
     flex: 1,
+  },
+
+  // Time picker button (replaces TextInput)
+  timePickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1.5,
+    borderColor: colors.primaryBorder,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    backgroundColor: colors.primaryBg,
+    justifyContent: 'center',
+  },
+  timePickerBtnText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.primaryDark,
+  },
+
+  // Time picker modal
+  tpOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  tpCard: {
+    backgroundColor: colors.light.card,
+    borderTopLeftRadius: radius['3xl'],
+    borderTopRightRadius: radius['3xl'],
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 36,
+    borderTopWidth: 1,
+    borderColor: colors.light.cardBorder,
+  },
+  tpTitle: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.bold,
+    color: colors.light.text,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  tpBody: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 20,
+  },
+  tpCol: { flex: 1 },
+  tpColLabel: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.semibold,
+    color: colors.light.subtle,
+    textAlign: 'center',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tpHoursGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    justifyContent: 'center',
+  },
+  tpCell: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.light.bg,
+    borderWidth: 1,
+    borderColor: colors.light.inputBorder,
+  },
+  tpCellSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  tpCellText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: colors.light.text,
+  },
+  tpCellTextSelected: {
+    color: '#ffffff',
+    fontWeight: fontWeight.bold,
+  },
+  tpColon: {
+    fontSize: 24,
+    fontWeight: fontWeight.bold,
+    color: colors.light.subtle,
+    marginTop: 30,
+    paddingHorizontal: 2,
+  },
+  tpMinCol: {
+    gap: 6,
+  },
+  tpMinCell: {
+    height: 42,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.light.bg,
+    borderWidth: 1,
+    borderColor: colors.light.inputBorder,
+  },
+  tpFooter: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  tpCancelBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: radius.xl,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.light.inputBorder,
+    backgroundColor: colors.light.bg,
+  },
+  tpCancelText: {
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.medium,
+    color: colors.light.muted,
+  },
+  tpConfirmBtn: {
+    flex: 2,
+    paddingVertical: 13,
+    borderRadius: radius.xl,
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+  },
+  tpConfirmText: {
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.bold,
+    color: '#ffffff',
   },
 })
