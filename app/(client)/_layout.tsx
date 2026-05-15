@@ -76,6 +76,10 @@ export default function ClientLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="decouverte"
+        options={{ href: null }}
+      />
     </Tabs>
   )
 }

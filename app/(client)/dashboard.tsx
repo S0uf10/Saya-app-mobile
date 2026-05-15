@@ -48,31 +48,6 @@ interface RelationWithRewards extends LoyaltyRelation {
   rewards: Reward[]
 }
 
-interface DiscoverMerchant {
-  id: string
-  name: string
-  logo_url: string | null
-  address: string | null
-  category: string | null
-  opening_hours: Record<string, { closed: boolean; open: string; close: string }> | null
-  is_member: boolean
-}
-
-function getOpenStatus(hours: DiscoverMerchant['opening_hours']): { open: boolean; label: string } {
-  if (!hours) return { open: false, label: 'Horaires non renseignés' }
-  const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-  const now  = new Date()
-  const key  = days[now.getDay()]
-  const today = hours[key]
-  if (!today || today.closed) return { open: false, label: "Fermé aujourd'hui" }
-  const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
-  const nowMin = now.getHours() * 60 + now.getMinutes()
-  if (nowMin >= toMin(today.open) && nowMin < toMin(today.close))
-    return { open: true, label: `Ouvert · Ferme à ${today.close}` }
-  if (nowMin < toMin(today.open)) return { open: false, label: `Ouvre à ${today.open}` }
-  return { open: false, label: 'Fermé · Ouvre demain' }
-}
-
 type WalletLoading = 'apple' | 'google' | 'samsung' | null
 
 export default function ClientDashboard() {
@@ -85,12 +60,6 @@ export default function ClientDashboard() {
   const [walletLoading, setWalletLoading] = useState<WalletLoading>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Discover tab
-  const [merchantTab, setMerchantTab] = useState<'mine' | 'discover'>('mine')
-  const [discoverMerchants, setDiscoverMerchants] = useState<DiscoverMerchant[]>([])
-  const [discoverCategories, setDiscoverCategories] = useState<string[]>([])
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [discoverLoading, setDiscoverLoading] = useState(false)
 
   useEffect(() => {
     if (client?.level_alert) setLevelAlertVisible(true)
@@ -126,38 +95,6 @@ export default function ClientDashboard() {
   }, [client])
 
   useEffect(() => { loadData() }, [loadData])
-
-  const loadDiscover = useCallback(async () => {
-    if (!client) return
-    setDiscoverLoading(true)
-    try {
-      let query = supabase
-        .from('merchants')
-        .select('id, name, logo_url, address, category, opening_hours')
-        .eq('subscription_status', 'active')
-        .not('category', 'is', null)
-        .order('name')
-
-      if (selectedCategory) query = query.eq('category', selectedCategory)
-
-      const { data } = await query
-      const memberOf = new Set(relations.map(r => r.merchant_id))
-      const result: DiscoverMerchant[] = (data ?? []).map(m => ({ ...m, is_member: memberOf.has(m.id) }))
-      setDiscoverMerchants(result)
-
-      // Extract categories
-      if (!selectedCategory) {
-        const cats = [...new Set(result.map(m => m.category).filter(Boolean) as string[])].sort()
-        setDiscoverCategories(cats)
-      }
-    } finally {
-      setDiscoverLoading(false)
-    }
-  }, [client, selectedCategory, relations])
-
-  useEffect(() => {
-    if (merchantTab === 'discover') loadDiscover()
-  }, [merchantTab, loadDiscover])
 
   async function dismissLevelAlert() {
     setLevelAlertVisible(false)
@@ -406,180 +343,86 @@ export default function ClientDashboard() {
           {/* ── Merchants ───────────────────────── */}
           <View style={styles.section}>
 
-            {/* Tabs */}
-            <View style={styles.tabRow}>
-              {(['mine', 'discover'] as const).map(tab => (
-                <TouchableOpacity
-                  key={tab}
-                  style={[styles.tab, merchantTab === tab && styles.tabActive]}
-                  onPress={() => setMerchantTab(tab)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.tabText, merchantTab === tab && styles.tabTextActive]}>
-                    {tab === 'mine' ? `Mes commerçants (${relations.length})` : 'Découvrir'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            {/* Header row */}
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>
+                Mes commerçants{' '}
+                <Text style={styles.sectionCount}>({relations.length})</Text>
+              </Text>
+              <TouchableOpacity
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              onPress={() => router.push('/(client)/decouverte' as any)}
+                activeOpacity={0.7}
+                style={styles.discoverBtn}
+              >
+                <Text style={styles.discoverBtnText}>Découvrir</Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.primaryLight} />
+              </TouchableOpacity>
             </View>
 
-            {/* ── Onglet Mes commerçants ── */}
-            {merchantTab === 'mine' && (
-              <>
-                {!loading && relations.length > 0 && (
-                  <View style={styles.searchBar}>
-                    <Ionicons name="search-outline" size={15} color={colors.dark.muted} />
-                    <TextInput
-                      style={styles.searchInput}
-                      placeholder="Rechercher un commerçant..."
-                      placeholderTextColor={colors.dark.subtle}
-                      value={searchQuery}
-                      onChangeText={setSearchQuery}
-                      autoCapitalize="none"
-                      returnKeyType="search"
-                    />
-                    {searchQuery.length > 0 && (
-                      <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
-                        <Ionicons name="close-circle" size={15} color={colors.dark.subtle} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
+            {!loading && relations.length > 0 && (
+              <View style={styles.searchBar}>
+                <Ionicons name="search-outline" size={15} color={colors.dark.muted} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Rechercher un commerçant..."
+                  placeholderTextColor={colors.dark.subtle}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoCapitalize="none"
+                  returnKeyType="search"
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
+                    <Ionicons name="close-circle" size={15} color={colors.dark.subtle} />
+                  </TouchableOpacity>
                 )}
+              </View>
+            )}
 
-                {loading ? (
-                  <ActivityIndicator color={colors.primary} style={{ marginTop: 16 }} />
-                ) : relations.length === 0 ? (
-                  <EmptyState
-                    theme="dark"
-                    iconName="storefront-outline"
-                    title="Aucun commerçant encore"
-                    subtitle="Scannez votre QR code chez un commerçant pour commencer à cumuler des points."
-                  />
-                ) : (() => {
-                  const filtered = searchQuery.trim()
-                    ? relations.filter((r) =>
-                        r.merchants?.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
-                      )
-                    : relations
-                  return filtered.length === 0 ? (
-                    <Text style={styles.noResults}>Aucun commerçant trouvé</Text>
-                  ) : (
-                    <View style={styles.merchantList}>
-                      {filtered.map((rel) => {
-                        const merchant = rel.merchants
-                        if (!merchant) return null
-                        const availableRewards = rel.rewards.filter(
-                          (r) => rel.current_points >= r.points_cost
-                        )
-                        return (
-                          <MerchantCard
-                            key={rel.id}
-                            name={merchant.name}
-                            logoUrl={merchant.logo_url}
-                            currentPoints={rel.current_points}
-                            visitsCount={rel.visits_count}
-                            lastVisit={rel.last_visit}
-                            address={merchant.address}
-                            openingHours={merchant.opening_hours}
-                            rewards={rel.rewards}
-                            availableRewards={availableRewards}
-                          />
-                        )
-                      })}
-                    </View>
+            {loading ? (
+              <ActivityIndicator color={colors.primary} style={{ marginTop: 16 }} />
+            ) : relations.length === 0 ? (
+              <EmptyState
+                theme="dark"
+                iconName="storefront-outline"
+                title="Aucun commerçant encore"
+                subtitle="Scannez votre QR code chez un commerçant pour commencer à cumuler des points."
+              />
+            ) : (() => {
+              const filtered = searchQuery.trim()
+                ? relations.filter((r) =>
+                    r.merchants?.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
                   )
-                })()}
-              </>
-            )}
-
-            {/* ── Onglet Découvrir ── */}
-            {merchantTab === 'discover' && (
-              <>
-                {/* Filtres catégorie */}
-                {discoverCategories.length > 0 && (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.catScroll}
-                    contentContainerStyle={styles.catScrollContent}
-                  >
-                    <TouchableOpacity
-                      style={[styles.catChip, !selectedCategory && styles.catChipActive]}
-                      onPress={() => setSelectedCategory(null)}
-                    >
-                      <Text style={[styles.catChipText, !selectedCategory && styles.catChipTextActive]}>
-                        Tous
-                      </Text>
-                    </TouchableOpacity>
-                    {discoverCategories.map(cat => (
-                      <TouchableOpacity
-                        key={cat}
-                        style={[styles.catChip, selectedCategory === cat && styles.catChipActive]}
-                        onPress={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-                      >
-                        <Text style={[styles.catChipText, selectedCategory === cat && styles.catChipTextActive]}>
-                          {cat}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                )}
-
-                {discoverLoading ? (
-                  <ActivityIndicator color={colors.primary} style={{ marginTop: 16 }} />
-                ) : discoverMerchants.length === 0 ? (
-                  <EmptyState
-                    theme="dark"
-                    iconName="storefront-outline"
-                    title="Aucun commerçant"
-                    subtitle={selectedCategory ? `Aucun commerçant dans "${selectedCategory}"` : "Aucun commerçant disponible pour l'instant."}
-                  />
-                ) : (
-                  <View style={[styles.merchantList]}>
-                    {discoverMerchants.map(m => {
-                      const status = getOpenStatus(m.opening_hours)
-                      return (
-                        <View key={m.id} style={styles.discoverCard}>
-                          <View style={styles.discoverHeader}>
-                            <View style={styles.discoverAvatar}>
-                              <Text style={styles.discoverAvatarText}>{m.name[0]}</Text>
-                            </View>
-                            <View style={styles.discoverInfo}>
-                              <View style={styles.discoverNameRow}>
-                                <Text style={styles.discoverName} numberOfLines={1}>{m.name}</Text>
-                                {m.is_member && (
-                                  <View style={styles.memberBadge}>
-                                    <Text style={styles.memberBadgeText}>Membre</Text>
-                                  </View>
-                                )}
-                              </View>
-                              <View style={styles.discoverBadgeRow}>
-                                <View style={[styles.statusDot, { backgroundColor: status.open ? '#4ade80' : 'rgba(255,255,255,0.3)' }]} />
-                                <Text style={styles.discoverStatusText}>{status.label}</Text>
-                              </View>
-                              {m.category && (
-                                <View style={styles.catBadge}>
-                                  <Text style={styles.catBadgeText}>{m.category}</Text>
-                                </View>
-                              )}
-                            </View>
-                          </View>
-                          {m.address && (
-                            <Text style={styles.discoverAddress} numberOfLines={1}>
-                              📍 {m.address}
-                            </Text>
-                          )}
-                          {!m.is_member && (
-                            <Text style={styles.discoverHint}>
-                              Présentez votre QR code en magasin pour rejoindre
-                            </Text>
-                          )}
-                        </View>
-                      )
-                    })}
-                  </View>
-                )}
-              </>
-            )}
+                : relations
+              return filtered.length === 0 ? (
+                <Text style={styles.noResults}>Aucun commerçant trouvé</Text>
+              ) : (
+                <View style={styles.merchantList}>
+                  {filtered.map((rel) => {
+                    const merchant = rel.merchants
+                    if (!merchant) return null
+                    const availableRewards = rel.rewards.filter(
+                      (r) => rel.current_points >= r.points_cost
+                    )
+                    return (
+                      <MerchantCard
+                        key={rel.id}
+                        name={merchant.name}
+                        logoUrl={merchant.logo_url}
+                        currentPoints={rel.current_points}
+                        visitsCount={rel.visits_count}
+                        lastVisit={rel.last_visit}
+                        address={merchant.address}
+                        openingHours={merchant.opening_hours}
+                        rewards={rel.rewards}
+                        availableRewards={availableRewards}
+                      />
+                    )
+                  })}
+                </View>
+              )
+            })()}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -767,11 +610,31 @@ const styles = StyleSheet.create({
   levelSeeMoreText: { fontSize: fontSize.xs, color: colors.dark.muted },
 
   // Section title
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
   sectionTitle: {
     fontSize: fontSize.md,
     fontWeight: fontWeight.bold,
     color: colors.dark.text,
-    marginBottom: 12,
+  },
+  sectionCount: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.regular,
+    color: colors.dark.muted,
+  },
+  discoverBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  discoverBtnText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.primaryLight,
   },
 
   // Merchant list
@@ -803,122 +666,4 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
 
-  // Tabs
-  tabRow: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderRadius: radius.xl,
-    padding: 4,
-    marginBottom: 12,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: radius.lg,
-    alignItems: 'center',
-  },
-  tabActive: {
-    backgroundColor: '#ffffff',
-  },
-  tabText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-    color: 'rgba(255,255,255,0.55)',
-  },
-  tabTextActive: {
-    color: '#6d28d9',
-  },
-
-  // Category chips
-  catScroll: { marginBottom: 12 },
-  catScrollContent: { gap: 8, paddingRight: 4 },
-  catChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-  },
-  catChipActive: {
-    backgroundColor: '#ffffff',
-  },
-  catChipText: {
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.semibold,
-    color: 'rgba(255,255,255,0.60)',
-  },
-  catChipTextActive: {
-    color: '#6d28d9',
-  },
-
-  // Discover card
-  discoverCard: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: radius['2xl'],
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    padding: 14,
-    gap: 8,
-  },
-  discoverHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  discoverAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.lg,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  discoverAvatarText: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    color: 'rgba(255,255,255,0.70)',
-  },
-  discoverInfo: { flex: 1, gap: 3 },
-  discoverNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  discoverName: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.bold,
-    color: colors.dark.text,
-    flexShrink: 1,
-  },
-  memberBadge: {
-    backgroundColor: 'rgba(74,222,128,0.20)',
-    borderRadius: 99,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-  },
-  memberBadgeText: {
-    fontSize: 10,
-    fontWeight: fontWeight.bold,
-    color: '#4ade80',
-  },
-  discoverBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
-  discoverStatusText: { fontSize: 10, color: colors.dark.muted },
-  catBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(168,85,247,0.20)',
-    borderRadius: 99,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    marginTop: 2,
-  },
-  catBadgeText: {
-    fontSize: 10,
-    fontWeight: fontWeight.semibold,
-    color: '#c084fc',
-  },
-  discoverAddress: {
-    fontSize: fontSize.xs,
-    color: colors.dark.subtle,
-  },
-  discoverHint: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.25)',
-    textAlign: 'center',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
-    paddingTop: 8,
-  },
 })
