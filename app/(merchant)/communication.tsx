@@ -10,7 +10,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
-  FlatList,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -20,7 +19,7 @@ import { colors, radius, fontSize, fontWeight, shadows } from '../../src/theme'
 import { Button } from '../../src/components/ui/Button'
 import { Input } from '../../src/components/ui/Input'
 
-type Channel = 'email' | 'push'
+type Channel = 'email' | 'push' | 'wallet'
 type Segment = 'all' | 'inactive_30d' | 'top_clients' | 'age_range' | 'client_search'
 
 const WEB_APP_URL = 'https://www.saya-card.com'
@@ -58,6 +57,15 @@ export default function CommunicationScreen() {
   const [previewCount, setPreviewCount]     = useState<number | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
 
+  // Wallet channel state
+  const [walletStats, setWalletStats]           = useState<{ walletClientCount: number; googleClientCount: number; history: { id: string; message: string; created_at: string; sent_google?: number }[] } | null>(null)
+  const [loadingWalletStats, setLoadingWalletStats] = useState(false)
+  const [walletSending, setWalletSending]       = useState(false)
+  const [walletMessage, setWalletMessage]       = useState('')
+  const [walletSuccess, setWalletSuccess]       = useState<{ sent_apple: number; sent_google: number; failed: number } | null>(null)
+  const [walletError, setWalletError]           = useState<string | null>(null)
+  const WALLET_MSG_MAX = 100
+
   // Age range
   const [minAge, setMinAge] = useState('')
   const [maxAge, setMaxAge] = useState('')
@@ -68,6 +76,15 @@ export default function CommunicationScreen() {
   const [selectedClients, setSelectedClients] = useState<ClientResult[]>([])
   const [searching, setSearching]             = useState(false)
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (channel === 'wallet') {
+      fetchWalletStats()
+      setWalletSuccess(null)
+      setWalletError(null)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channel])
 
   useEffect(() => {
     if (segment !== 'client_search') {
@@ -184,6 +201,42 @@ export default function CommunicationScreen() {
     return count ?? 0
   }
 
+  async function fetchWalletStats() {
+    if (!session) return
+    setLoadingWalletStats(true)
+    try {
+      const res = await fetch(`${WEB_APP_URL}/api/merchant/notify`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (res.ok) setWalletStats(await res.json())
+    } finally {
+      setLoadingWalletStats(false)
+    }
+  }
+
+  async function handleWalletSend() {
+    if (!session || !walletMessage.trim()) return
+    setWalletSending(true)
+    setWalletError(null)
+    setWalletSuccess(null)
+    try {
+      const res = await fetch(`${WEB_APP_URL}/api/merchant/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ message: walletMessage.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Erreur lors de l\'envoi')
+      setWalletSuccess(data)
+      setWalletMessage('')
+      await fetchWalletStats()
+    } catch (err: any) {
+      setWalletError(err.message)
+    } finally {
+      setWalletSending(false)
+    }
+  }
+
   async function handlePreview() {
     setLoadingPreview(true)
     try {
@@ -261,7 +314,7 @@ export default function CommunicationScreen() {
                 const data = await res.json()
                 Alert.alert('Envoyé !', `${data.sent ?? count} e-mail${(data.sent ?? count) > 1 ? 's' : ''} envoyé${(data.sent ?? count) > 1 ? 's' : ''}.`)
               } else {
-                const res = await fetch(`${WEB_APP_URL}/api/merchants/send-notification`, {
+                const res = await fetch(`${WEB_APP_URL}/api/merchants/send-push`, {
                   method: 'POST',
                   headers,
                   body: JSON.stringify({
@@ -296,7 +349,7 @@ export default function CommunicationScreen() {
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.inner}>
             <Text style={styles.pageTitle}>Communication</Text>
-            <Text style={styles.pageSubtitle}>Contactez vos clients par e-mail ou notification push</Text>
+            <Text style={styles.pageSubtitle}>Contactez vos clients par e-mail, notification push ou Wallet</Text>
 
             {/* Channel toggle */}
             <View style={styles.channelRow}>
@@ -305,8 +358,8 @@ export default function CommunicationScreen() {
                 onPress={() => { setChannel('push'); resetForm() }}
                 activeOpacity={0.75}
               >
-                <Ionicons name="notifications-outline" size={16} color={channel === 'push' ? colors.primary : colors.light.muted} />
-                <Text style={[styles.channelBtnText, channel === 'push' && styles.channelBtnTextActive]}>Notification push</Text>
+                <Ionicons name="notifications-outline" size={15} color={channel === 'push' ? colors.primary : colors.light.muted} />
+                <Text style={[styles.channelBtnText, channel === 'push' && styles.channelBtnTextActive]}>Push</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -314,12 +367,134 @@ export default function CommunicationScreen() {
                 onPress={() => { setChannel('email'); resetForm() }}
                 activeOpacity={0.75}
               >
-                <Ionicons name="mail-outline" size={16} color={channel === 'email' ? colors.primary : colors.light.muted} />
+                <Ionicons name="mail-outline" size={15} color={channel === 'email' ? colors.primary : colors.light.muted} />
                 <Text style={[styles.channelBtnText, channel === 'email' && styles.channelBtnTextActive]}>E-mail</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.channelBtn, channel === 'wallet' && styles.channelBtnActive]}
+                onPress={() => setChannel('wallet')}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="wallet-outline" size={15} color={channel === 'wallet' ? colors.primary : colors.light.muted} />
+                <Text style={[styles.channelBtnText, channel === 'wallet' && styles.channelBtnTextActive]}>Wallet</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Segment selection */}
+            {/* ── Wallet channel ─────────────────── */}
+            {channel === 'wallet' && (
+              <View>
+                {/* Stats */}
+                <View style={styles.walletStatsBanner}>
+                  <Ionicons name="people-outline" size={17} color={colors.primary} />
+                  {loadingWalletStats ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Text style={styles.walletStatsText}>
+                      <Text style={styles.walletStatsCount}>
+                        {(walletStats?.walletClientCount ?? 0) + (walletStats?.googleClientCount ?? 0)}
+                      </Text>
+                      {' '}client{((walletStats?.walletClientCount ?? 0) + (walletStats?.googleClientCount ?? 0)) > 1 ? 's' : ''} seront notifiés
+                      {((walletStats?.walletClientCount ?? 0) > 0 || (walletStats?.googleClientCount ?? 0) > 0) && (
+                        <Text style={styles.walletStatsSub}>
+                          {' '}({walletStats?.walletClientCount ?? 0} Apple · {walletStats?.googleClientCount ?? 0} Android)
+                        </Text>
+                      )}
+                    </Text>
+                  )}
+                </View>
+
+                {/* Info rate limit */}
+                <View style={styles.walletInfoRow}>
+                  <Ionicons name="information-circle-outline" size={15} color={colors.light.muted} />
+                  <Text style={styles.walletInfoText}>
+                    Limite : 1 notification par heure. Le message apparaît sur la carte de fidélité.
+                  </Text>
+                </View>
+
+                {/* Success */}
+                {walletSuccess && (
+                  <View style={styles.walletSuccess}>
+                    <Ionicons name="checkmark-circle" size={16} color="#16a34a" />
+                    <Text style={styles.walletSuccessText}>
+                      {[
+                        walletSuccess.sent_apple > 0 && `${walletSuccess.sent_apple} Apple`,
+                        walletSuccess.sent_google > 0 && `${walletSuccess.sent_google} Android`,
+                      ].filter(Boolean).join(', ') || '0'} client{(walletSuccess.sent_apple + walletSuccess.sent_google) > 1 ? 's' : ''} notifié{(walletSuccess.sent_apple + walletSuccess.sent_google) > 1 ? 's' : ''}
+                      {walletSuccess.failed > 0 && ` · ${walletSuccess.failed} échec`}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Error */}
+                {walletError && (
+                  <View style={styles.walletError}>
+                    <Ionicons name="alert-circle-outline" size={16} color="#dc2626" />
+                    <Text style={styles.walletErrorText}>{walletError}</Text>
+                  </View>
+                )}
+
+                {/* Textarea */}
+                <View style={{ marginBottom: 6 }}>
+                  <View style={styles.walletMsgHeader}>
+                    <Text style={styles.areaLabel}>Message</Text>
+                    <Text style={[styles.charCount, walletMessage.length > WALLET_MSG_MAX - 10 && { color: '#dc2626' }]}>
+                      {WALLET_MSG_MAX - walletMessage.length} restants
+                    </Text>
+                  </View>
+                  <TextInput
+                    style={styles.textarea}
+                    placeholder="Ex : -20% ce week-end, venez en profiter !"
+                    placeholderTextColor={colors.light.placeholder}
+                    multiline
+                    numberOfLines={4}
+                    maxLength={WALLET_MSG_MAX}
+                    value={walletMessage}
+                    onChangeText={(v) => { setWalletMessage(v); setWalletSuccess(null) }}
+                    textAlignVertical="top"
+                  />
+                </View>
+
+                {/* Send button */}
+                <View style={styles.sendBtnSpacing}>
+                  <Button
+                    onPress={handleWalletSend}
+                    loading={walletSending}
+                    size="lg"
+                    disabled={!walletMessage.trim() || walletMessage.length > WALLET_MSG_MAX}
+                  >
+                    <Ionicons name="wallet-outline" size={18} color="#ffffff" />
+                    {'  '}Envoyer sur les Wallets
+                  </Button>
+                </View>
+
+                {/* History */}
+                {(walletStats?.history?.length ?? 0) > 0 && (
+                  <View style={{ marginTop: 20 }}>
+                    <Text style={styles.walletHistoryTitle}>Historique des envois</Text>
+                    {walletStats!.history.map((notif) => (
+                      <View key={notif.id} style={styles.walletHistoryItem}>
+                        <Text style={styles.walletHistoryMsg} numberOfLines={2}>{notif.message}</Text>
+                        <View style={styles.walletHistoryMeta}>
+                          {(notif.sent_google ?? 0) > 0 && (
+                            <View style={styles.walletHistoryBadge}>
+                              <Ionicons name="logo-android" size={10} color={colors.light.muted} />
+                              <Text style={styles.walletHistoryBadgeText}>{notif.sent_google}</Text>
+                            </View>
+                          )}
+                          <Text style={styles.walletHistoryDate}>
+                            {new Date(notif.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Push / Email sections */}
+            {channel !== 'wallet' && <>
             <Text style={styles.sectionLabel}>Destinataires</Text>
             <View style={styles.segmentList}>
               {SEGMENTS.map((seg) => {
@@ -548,6 +723,7 @@ export default function CommunicationScreen() {
                 ? "Seuls les clients ayant activé les notifications sur leur appareil recevront ce message."
                 : "Seuls les clients ayant accepté les communications marketing recevront cet e-mail."}
             </Text>
+            </>}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -588,10 +764,13 @@ const styles = StyleSheet.create({
   segmentItem: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.light.card, borderRadius: radius['2xl'],
-    borderWidth: 1.5, borderColor: colors.light.cardBorder,
+    borderWidth: 1, borderColor: colors.light.cardBorder,
     padding: 14, gap: 10, ...shadows.sm,
   },
-  segmentItemActive: { borderColor: colors.primaryBorder, backgroundColor: colors.primaryBg },
+  segmentItemActive: {
+    borderColor: Platform.OS === 'android' ? '#D9B8F8' : colors.primaryBorder,
+    backgroundColor: Platform.OS === 'android' ? '#F2E7FD' : colors.primaryBg,
+  },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.light.subtle, alignItems: 'center', justifyContent: 'center' },
   radioActive: { borderColor: colors.primary, backgroundColor: colors.primary },
   radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ffffff' },
@@ -691,4 +870,49 @@ const styles = StyleSheet.create({
   charCount: { fontSize: fontSize.xs, color: colors.light.subtle, textAlign: 'right', marginTop: 6 },
   sendBtnSpacing: { marginTop: 20 },
   disclaimer: { fontSize: fontSize.xs, color: colors.light.subtle, textAlign: 'center', marginTop: 14, lineHeight: 17 },
+
+  // Wallet channel
+  walletStatsBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: colors.primaryBg, borderWidth: 1, borderColor: colors.primaryBorder,
+    borderRadius: radius['2xl'], paddingHorizontal: 14, paddingVertical: 12, marginBottom: 10,
+  },
+  walletStatsText: { flex: 1, fontSize: fontSize.sm, color: colors.light.text },
+  walletStatsCount: { fontWeight: fontWeight.bold, color: colors.primaryDark },
+  walletStatsSub: { color: colors.light.muted },
+  walletInfoRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: colors.light.card, borderWidth: 1, borderColor: colors.light.cardBorder,
+    borderRadius: radius['2xl'], paddingHorizontal: 14, paddingVertical: 10, marginBottom: 14,
+  },
+  walletInfoText: { flex: 1, fontSize: fontSize.xs, color: colors.light.muted, lineHeight: 17 },
+  walletSuccess: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0',
+    borderRadius: radius['2xl'], paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12,
+  },
+  walletSuccessText: { flex: 1, fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: '#15803d' },
+  walletError: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fecaca',
+    borderRadius: radius['2xl'], paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12,
+  },
+  walletErrorText: { flex: 1, fontSize: fontSize.sm, color: '#dc2626' },
+  walletMsgHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  walletHistoryTitle: {
+    fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.light.textSoft, marginBottom: 10,
+  },
+  walletHistoryItem: {
+    backgroundColor: colors.light.card, borderWidth: 1, borderColor: colors.light.cardBorder,
+    borderRadius: radius['2xl'], paddingHorizontal: 14, paddingVertical: 12, marginBottom: 8,
+  },
+  walletHistoryMsg: { fontSize: fontSize.sm, color: colors.light.text, marginBottom: 6 },
+  walletHistoryMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  walletHistoryBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: colors.light.inputBorder, borderRadius: radius.md,
+    paddingHorizontal: 7, paddingVertical: 3,
+  },
+  walletHistoryBadgeText: { fontSize: 10, color: colors.light.muted, fontWeight: fontWeight.medium },
+  walletHistoryDate: { fontSize: fontSize.xs, color: colors.light.subtle },
 })
