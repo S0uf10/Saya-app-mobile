@@ -34,19 +34,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        loadProfile(session.user)
-      } else {
-        setLoading(false)
-      }
-    })
+    // Safety timeout: if INITIAL_SESSION never fires (edge case on cold start)
+    const timeout = setTimeout(() => setLoading(false), 8000)
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Clear the safety timeout as soon as any event arrives
+      clearTimeout(timeout)
+
+      // PASSWORD_RECOVERY / USER_UPDATED : flow de reset mot de passe
+      // Ne pas charger le profil ni déclencher de redirect
+      if (event === 'PASSWORD_RECOVERY' || event === 'USER_UPDATED') return
+
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
@@ -59,12 +59,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      clearTimeout(timeout)
+      subscription.unsubscribe()
+    }
   }, [])
 
   async function loadProfile(u: User) {
     const userRole = u.user_metadata?.role as 'client' | 'merchant' | undefined
-    setRole(userRole ?? null)
+
+    if (!userRole) {
+      await supabase.auth.signOut()
+      setRole(null)
+      setClient(null)
+      setMerchant(null)
+      setLoading(false)
+      return
+    }
+
+    setRole(userRole)
 
     try {
       if (userRole === 'client') {
@@ -73,7 +86,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .select('*')
           .eq('user_id', u.id)
           .single()
-        setClient(data ?? null)
+        if (!data) {
+          await supabase.auth.signOut()
+          setRole(null)
+          return
+        }
+        setClient(data)
         setMerchant(null)
       } else if (userRole === 'merchant') {
         const { data } = await supabase
@@ -81,7 +99,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .select('*')
           .eq('user_id', u.id)
           .single()
-        setMerchant(data ?? null)
+        if (!data) {
+          await supabase.auth.signOut()
+          setRole(null)
+          return
+        }
+        setMerchant(data)
         setClient(null)
       }
     } finally {
