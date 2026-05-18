@@ -111,21 +111,37 @@ export function MerchantCard({
       {/* ── Available rewards ───────────────── */}
       {availableRewards.length > 0 && (
         <View style={styles.rewardBanner}>
-          <View style={styles.rewardBannerRow}>
-            <Ionicons name="gift-outline" size={13} color="#fcd34d" />
-            <Text style={styles.rewardBannerTitle}>
-              {availableRewards.length} récompense{availableRewards.length > 1 ? 's' : ''} disponible{availableRewards.length > 1 ? 's' : ''}
+          {availableRewards[0].image_url && (
+            <Image
+              source={{ uri: availableRewards[0].image_url }}
+              style={styles.rewardBannerImage}
+              resizeMode="cover"
+            />
+          )}
+          <View style={styles.rewardBannerContent}>
+            <View style={styles.rewardBannerRow}>
+              <Ionicons name="gift-outline" size={13} color="#fcd34d" />
+              <Text style={styles.rewardBannerTitle}>
+                {availableRewards.length} récompense{availableRewards.length > 1 ? 's' : ''} disponible{availableRewards.length > 1 ? 's' : ''}
+              </Text>
+            </View>
+            <Text style={styles.rewardBannerSub} numberOfLines={1}>
+              {availableRewards.map((r) => r.name).join(', ')}
             </Text>
           </View>
-          <Text style={styles.rewardBannerSub} numberOfLines={1}>
-            {availableRewards.map((r) => r.name).join(', ')}
-          </Text>
         </View>
       )}
 
       {/* ── Progress to next reward ─────────── */}
       {availableRewards.length === 0 && cheapestReward && (
         <View style={styles.progressSection}>
+          {cheapestReward.image_url && (
+            <Image
+              source={{ uri: cheapestReward.image_url }}
+              style={styles.rewardProgressImage}
+              resizeMode="cover"
+            />
+          )}
           <View style={styles.progressRow}>
             <Text style={styles.progressLabel}>Prochaine : {cheapestReward.name}</Text>
             <Text style={styles.progressLabel}>
@@ -250,6 +266,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.amberBorder,
     borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  rewardBannerImage: {
+    width: '100%',
+    height: 80,
+  },
+  rewardBannerContent: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     gap: 3,
@@ -272,6 +295,12 @@ const styles = StyleSheet.create({
 
   // Progress
   progressSection: { marginTop: 10 },
+  rewardProgressImage: {
+    width: '100%',
+    height: 72,
+    borderRadius: radius.md,
+    marginBottom: 8,
+  },
   progressRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
