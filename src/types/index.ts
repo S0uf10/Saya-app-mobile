@@ -94,6 +94,7 @@ export interface Reward {
   description: string | null
   points_cost: number
   is_active: boolean
+  image_url: string | null
   created_at: string
 }
 
