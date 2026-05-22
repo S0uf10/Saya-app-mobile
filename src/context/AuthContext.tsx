@@ -34,8 +34,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Safety net: if getSession() or loadProfile() never resolves
+    const timeout = setTimeout(() => setLoading(false), 5000)
+
     // Read session directly from SecureStore — reliable on cold start
     supabase.auth.getSession().then(({ data: { session } }) => {
+      clearTimeout(timeout)
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
@@ -43,6 +47,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setLoading(false)
       }
+    }).catch(() => {
+      clearTimeout(timeout)
+      setLoading(false)
     })
 
     const {
