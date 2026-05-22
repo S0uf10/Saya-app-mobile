@@ -34,17 +34,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Safety timeout: if INITIAL_SESSION never fires (edge case on cold start)
-    const timeout = setTimeout(() => setLoading(false), 8000)
+    // Read session directly from SecureStore — reliable on cold start
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      setUser(session?.user ?? null)
+      if (session?.user) {
+        loadProfile(session.user)
+      } else {
+        setLoading(false)
+      }
+    })
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Clear the safety timeout as soon as any event arrives
-      clearTimeout(timeout)
+      // INITIAL_SESSION already handled by getSession() above
+      if (event === 'INITIAL_SESSION') return
 
       // PASSWORD_RECOVERY / USER_UPDATED : flow de reset mot de passe
-      // Ne pas charger le profil ni déclencher de redirect
       if (event === 'PASSWORD_RECOVERY' || event === 'USER_UPDATED') return
 
       setSession(session)
@@ -59,10 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })
 
-    return () => {
-      clearTimeout(timeout)
-      subscription.unsubscribe()
-    }
+    return () => subscription.unsubscribe()
   }, [])
 
   async function loadProfile(u: User) {
