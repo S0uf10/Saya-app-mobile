@@ -118,6 +118,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setMerchant(data)
         setClient(null)
       }
+    } catch {
+      setRole(null)
+      setClient(null)
+      setMerchant(null)
     } finally {
       setLoading(false)
     }

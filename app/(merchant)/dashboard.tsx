@@ -187,7 +187,11 @@ export default function MerchantDashboard() {
     loadRecent()
   }, [loadAnalytics, loadRecent])
 
-  if (!merchant) return null
+  if (!merchant) return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.light.bg }}>
+      <ActivityIndicator size="large" color={colors.primary} />
+    </View>
+  )
 
   const plan = merchant.subscription_plan ? planLabel[merchant.subscription_plan] : null
   const k = analytics?.kpis
