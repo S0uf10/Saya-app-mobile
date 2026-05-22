@@ -77,6 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   async function loadProfile(u: User) {
+    setLoading(true)
     const userRole = u.user_metadata?.role as 'client' | 'merchant' | undefined
 
     if (!userRole) {
