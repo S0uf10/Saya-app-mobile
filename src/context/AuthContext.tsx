@@ -295,12 +295,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           BG_SESSION_TIMEOUT_MS,
           'bg_getSession'
         )
-          .then(({ data }) => {
+          .then(({ data, error }) => {
             if (!isMountedRef.current) return
             if (data.session) {
               setSession(data.session)
-            } else if (userRef.current) {
-              // Session expired while in background → clear and let index redirect.
+            } else if (!error && userRef.current) {
+              // session=null + no error = Supabase confirmed the session is gone.
+              // session=null + error   = network/refresh failure → keep existing state.
               setSession(null)
               setUser(null)
               setRole(null)
@@ -310,7 +311,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           })
           .catch(() => {
-            // Network unavailable — keep the last known state.
+            // Timeout or network error — keep the last known state.
           })
       }
     )
@@ -324,7 +325,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ── Stable public API ────────────────────────────────────────────────────────
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut()
+    // Clear local state immediately so the UI transitions without waiting
+    // for the network call or the onAuthStateChange('SIGNED_OUT') event.
+    // This prevents screens from staying stuck if the network is slow or down.
+    if (isMountedRef.current) {
+      setSession(null)
+      setUser(null)
+      setRole(null)
+      setClient(null)
+      setMerchant(null)
+      setBootStep('ready')
+      setIsBootstrapping(false)
+    }
+    // Revoke the remote token in the background — failures are acceptable here.
+    supabase.auth.signOut().catch(() => {})
   }, [])
 
   const refreshProfile = useCallback(async () => {
