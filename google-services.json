@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1099001565249",
+    "project_id": "saya-ca",
+    "storage_bucket": "saya-ca.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1099001565249:android:ae40d130e49840243e76c0",
+        "android_client_info": {
+          "package_name": "com.sayacard.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBwu7x0j16ZyOg6Ih_4_Dsk2tYdtEKchPQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
