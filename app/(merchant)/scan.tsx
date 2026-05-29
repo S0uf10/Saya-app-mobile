@@ -36,6 +36,7 @@ interface Result {
   title: string
   subtitle: string
   detail: string
+  bonuses?: { name: string; points: number }[]
 }
 
 export default function ScanScreen() {
@@ -184,6 +185,7 @@ export default function ScanScreen() {
         title: 'Points ajoutés !',
         subtitle: `${scanData.client.first_name} ${scanData.client.last_name}`,
         detail: `+${json.pointsAdded} pt${json.pointsAdded > 1 ? 's' : ''} · Solde : ${json.currentPoints} pts`,
+        bonuses: json.appliedBonuses,
       })
       setStep('result')
     } catch (err: any) {
@@ -586,6 +588,17 @@ export default function ScanScreen() {
           <Text style={styles.resultTitle}>{result.title}</Text>
           <Text style={styles.resultSubtitle}>{result.subtitle}</Text>
           <Text style={styles.resultDetail}>{result.detail}</Text>
+
+          {result.bonuses && result.bonuses.length > 0 && (
+            <View style={styles.bonusTags}>
+              {result.bonuses.map((b, i) => (
+                <View key={i} style={styles.bonusTag}>
+                  <Ionicons name="flash" size={11} color={colors.primary} />
+                  <Text style={styles.bonusTagText}>{b.name} +{b.points} pts</Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           <View style={styles.resultActions}>
             {result.type === 'points' && rewards.length > 0 && (
@@ -1078,7 +1091,29 @@ const styles = StyleSheet.create({
     fontSize: fontSize.base,
     color: colors.light.muted,
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 12,
+  },
+  bonusTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 24,
+    paddingHorizontal: 16,
+  },
+  bonusTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.75)',
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  bonusTagText: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.semibold,
+    color: colors.primary,
   },
   resultBtn: { width: '100%' },
   resultActions: {

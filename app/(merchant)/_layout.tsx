@@ -2,12 +2,14 @@ import { useEffect } from 'react'
 import { Tabs, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { Platform } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors } from '../../src/theme'
 import { useAuth } from '../../src/context/AuthContext'
 
 export default function MerchantLayout() {
   const { merchant, loading } = useAuth()
   const router = useRouter()
+  const insets = useSafeAreaInsets()
 
   useEffect(() => {
     if (loading) return
@@ -15,6 +17,9 @@ export default function MerchantLayout() {
       router.replace('/subscribe')
     }
   }, [merchant?.subscription_status, loading])
+
+  const androidPaddingBottom = insets.bottom + 8
+  const androidHeight = 56 + insets.bottom
 
   return (
     <Tabs
@@ -26,9 +31,9 @@ export default function MerchantLayout() {
           backgroundColor: colors.light.card,
           borderTopColor: colors.light.cardBorder,
           borderTopWidth: 1,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+          paddingBottom: Platform.OS === 'ios' ? 20 : androidPaddingBottom,
           paddingTop: 8,
-          height: Platform.OS === 'ios' ? 80 : 64,
+          height: Platform.OS === 'ios' ? 80 : androidHeight,
         },
         tabBarLabelStyle: {
           fontSize: 9,
@@ -78,6 +83,15 @@ export default function MerchantLayout() {
           title: 'Récompenses',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="gift-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="bonus-rules"
+        options={{
+          title: 'Bonus',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="flash-outline" size={size} color={color} />
           ),
         }}
       />

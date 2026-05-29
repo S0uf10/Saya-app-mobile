@@ -109,3 +109,28 @@ export interface ClientNotification {
   is_read: boolean
   created_at: string
 }
+
+export type BonusRuleType =
+  | 'birthday'
+  | 'first_visit'
+  | 'loyalty_anniversary'
+  | 'happy_hour'
+  | 'day_of_week'
+  | 'flash_offer'
+
+export interface BonusRule {
+  id: string
+  merchant_id: string
+  name: string
+  rule_type: BonusRuleType
+  is_active: boolean
+  bonus_type: 'points' | 'multiplier'
+  bonus_points: number | null
+  bonus_multiplier: number | null
+  time_start: string | null
+  time_end: string | null
+  days_of_week: number[] | null
+  date_start: string | null
+  date_end: string | null
+  created_at: string
+}
