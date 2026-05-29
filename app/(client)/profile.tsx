@@ -24,6 +24,7 @@ import {
   levelColorWithOpacity,
 } from '../../src/theme'
 import { Avatar } from '../../src/components/ui/Avatar'
+import { DatePicker } from '../../src/components/ui/DatePicker'
 
 export default function ProfileScreen() {
   const { client, signOut, refreshProfile } = useAuth()
@@ -33,6 +34,8 @@ export default function ProfileScreen() {
     (client as any)?.marketing_consent ?? false
   )
   const [updatingConsent, setUpdatingConsent] = useState(false)
+  const [birthDate, setBirthDate] = useState(client?.birth_date ?? '')
+  const [savingBirthDate, setSavingBirthDate] = useState(false)
 
   if (!client) return null
 
@@ -77,6 +80,17 @@ export default function ProfileScreen() {
     )
   }
 
+  async function handleBirthDateChange(value: string) {
+    setBirthDate(value)
+    setSavingBirthDate(true)
+    try {
+      await supabase.from('clients').update({ birth_date: value }).eq('id', client.id)
+      await refreshProfile()
+    } finally {
+      setSavingBirthDate(false)
+    }
+  }
+
   async function toggleMarketingConsent(value: boolean) {
     if (!client) return
     setMarketingConsent(value)
@@ -93,13 +107,6 @@ export default function ProfileScreen() {
     { icon: 'person-outline' as const, label: 'Nom', value: client.last_name },
     { icon: 'mail-outline' as const, label: 'E-mail', value: client.email },
     { icon: 'call-outline' as const, label: 'Téléphone', value: client.phone ?? 'Non renseigné' },
-    {
-      icon: 'calendar-outline' as const,
-      label: 'Date de naissance',
-      value: client.birth_date
-        ? new Date(client.birth_date).toLocaleDateString('fr-FR')
-        : 'Non renseigné',
-    },
     {
       icon: 'time-outline' as const,
       label: 'Membre depuis',
@@ -149,7 +156,7 @@ export default function ProfileScreen() {
                   key={item.label}
                   style={[
                     styles.infoRow,
-                    idx < infoItems.length - 1 && styles.infoRowBorder,
+                    styles.infoRowBorder,
                   ]}
                 >
                   <View style={styles.infoIconBox}>
@@ -161,6 +168,28 @@ export default function ProfileScreen() {
                   </View>
                 </View>
               ))}
+
+              {/* Date de naissance — éditable */}
+              <View style={[styles.infoRow, styles.birthRow]}>
+                <View style={styles.infoIconBox}>
+                  <Ionicons name="calendar-outline" size={16} color={colors.dark.muted} />
+                </View>
+                <View style={styles.infoContent}>
+                  <View style={styles.birthLabelRow}>
+                    <Text style={styles.infoLabel}>Date de naissance</Text>
+                    {savingBirthDate && (
+                      <Text style={styles.savingText}>Enregistrement…</Text>
+                    )}
+                  </View>
+                  <DatePicker
+                    theme="dark"
+                    value={birthDate}
+                    onChange={handleBirthDateChange}
+                    placeholder={birthDate ? undefined : 'Ajouter'}
+                    maxYear={new Date().getFullYear() - 10}
+                  />
+                </View>
+              </View>
             </View>
 
             {/* ── Preferences ───────────────────── */}
@@ -286,6 +315,21 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.dark.text,
     fontWeight: fontWeight.medium,
+  },
+  birthRow: {
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+  },
+  birthLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  savingText: {
+    fontSize: fontSize.xs,
+    color: colors.primary,
+    fontStyle: 'italic',
   },
 
   // Preferences
