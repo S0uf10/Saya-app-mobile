@@ -50,6 +50,7 @@ export default function ScanScreen() {
   const [selectedPresets, setSelectedPresets] = useState<ScanPreset[]>([])
   const [manualPoints, setManualPoints] = useState('')
   const [result, setResult] = useState<Result | null>(null)
+  const [requiresBirthdayVerification, setRequiresBirthdayVerification] = useState(false)
 
   const lastScanned = useRef<string | null>(null)
   const scanTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -72,6 +73,7 @@ export default function ScanScreen() {
     setSelectedPresets([])
     setManualPoints('')
     setResult(null)
+    setRequiresBirthdayVerification(false)
     lastScanned.current = null
   }, [])
 
@@ -126,6 +128,24 @@ export default function ScanScreen() {
         .eq('is_active', true)
         .order('points_cost', { ascending: true })
 
+      // Vérifier si c'est l'anniversaire du client ET si le commerçant a une règle active
+      const isBdayToday = (() => {
+        if (!clientData.birth_date) return false
+        const [, m, d] = clientData.birth_date.split('-')
+        const now = new Date()
+        return parseInt(m) - 1 === now.getMonth() && parseInt(d) === now.getDate()
+      })()
+      if (isBdayToday) {
+        const { data: bdRules } = await supabase
+          .from('bonus_rules')
+          .select('id')
+          .eq('merchant_id', merchant.id)
+          .eq('is_active', true)
+          .eq('rule_type', 'birthday')
+          .limit(1)
+        setRequiresBirthdayVerification(!!(bdRules && bdRules.length > 0))
+      }
+
       setScanData({ client: clientData, relation: relData, token })
       setRewards(rewardData ?? [])
       setStep('choice')
@@ -153,46 +173,61 @@ export default function ScanScreen() {
       return
     }
 
-    setLoading(true)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch('https://www.saya-card.com/api/scan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify({
-          token: scanData.token,
-          mode: 'add_points',
-          presets_used: selectedPresets.length > 0 ? selectedPresets : undefined,
-          points_override: parseInt(manualPoints, 10) || undefined,
-        }),
-      })
-      const json = await res.json()
-      if (!res.ok || !json.success) throw new Error(json.message ?? 'Erreur serveur')
+    const executeScan = async () => {
+      setLoading(true)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const res = await fetch('https://www.saya-card.com/api/scan', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({
+            token: scanData.token,
+            mode: 'add_points',
+            presets_used: selectedPresets.length > 0 ? selectedPresets : undefined,
+            points_override: parseInt(manualPoints, 10) || undefined,
+          }),
+        })
+        const json = await res.json()
+        if (!res.ok || !json.success) throw new Error(json.message ?? 'Erreur serveur')
 
-      // Mise à jour du solde local pour le step use_reward
-      setScanData(prev => prev ? {
-        ...prev,
-        relation: { ...prev.relation, current_points: json.currentPoints, visits_count: json.visitsCount },
-      } : prev)
-      setSelectedPresets([])
-      setManualPoints('')
+        setScanData(prev => prev ? {
+          ...prev,
+          relation: { ...prev.relation, current_points: json.currentPoints, visits_count: json.visitsCount },
+        } : prev)
+        setSelectedPresets([])
+        setManualPoints('')
 
-      setResult({
-        type: 'points',
-        title: 'Points ajoutés !',
-        subtitle: `${scanData.client.first_name} ${scanData.client.last_name}`,
-        detail: `+${json.pointsAdded} pt${json.pointsAdded > 1 ? 's' : ''} · Solde : ${json.currentPoints} pts`,
-        bonuses: json.appliedBonuses,
-      })
-      setStep('result')
-    } catch (err: any) {
-      Alert.alert('Erreur', err.message)
-    } finally {
-      setLoading(false)
+        setResult({
+          type: 'points',
+          title: 'Points ajoutés !',
+          subtitle: `${scanData.client.first_name} ${scanData.client.last_name}`,
+          detail: `+${json.pointsAdded} pt${json.pointsAdded > 1 ? 's' : ''} · Solde : ${json.currentPoints} pts`,
+          bonuses: json.appliedBonuses,
+        })
+        setStep('result')
+      } catch (err: any) {
+        Alert.alert('Erreur', err.message)
+      } finally {
+        setLoading(false)
+      }
     }
+
+    if (requiresBirthdayVerification) {
+      Alert.alert(
+        '🎂 Vérification d\'identité requise',
+        `C'est l'anniversaire de ${scanData.client.first_name} aujourd'hui.\n\nVérifiez sa pièce d'identité avant d'activer le bonus.`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Identité vérifiée ✓', onPress: executeScan },
+        ]
+      )
+      return
+    }
+
+    await executeScan()
   }
 
   async function handleUseReward(reward: Reward) {
@@ -370,6 +405,16 @@ export default function ScanScreen() {
                 </View>
               </View>
             </View>
+
+            {requiresBirthdayVerification && (
+              <View style={styles.birthdayBanner}>
+                <Text style={styles.birthdayBannerEmoji}>🎂</Text>
+                <View style={styles.birthdayBannerBody}>
+                  <Text style={styles.birthdayBannerTitle}>Anniversaire aujourd'hui !</Text>
+                  <Text style={styles.birthdayBannerSub}>Vérifiez l'identité du client avant d'ajouter des points</Text>
+                </View>
+              </View>
+            )}
 
             {availableRewards.length > 0 && (
               <View style={styles.rewardAlert}>
@@ -847,6 +892,23 @@ const styles = StyleSheet.create({
     height: 36,
     backgroundColor: colors.light.divider,
   },
+  birthdayBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#fdf2f8',
+    borderWidth: 1.5,
+    borderColor: '#f9a8d4',
+    borderRadius: radius.xl,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  birthdayBannerEmoji: { fontSize: 24 },
+  birthdayBannerBody: { flex: 1, gap: 2 },
+  birthdayBannerTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: '#be185d' },
+  birthdayBannerSub:   { fontSize: fontSize.xs, color: '#db2777' },
+
   rewardAlert: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -169,27 +169,40 @@ export default function ProfileScreen() {
                 </View>
               ))}
 
-              {/* Date de naissance — éditable */}
-              <View style={[styles.infoRow, styles.birthRow]}>
-                <View style={styles.infoIconBox}>
-                  <Ionicons name="calendar-outline" size={16} color={colors.dark.muted} />
-                </View>
-                <View style={styles.infoContent}>
-                  <View style={styles.birthLabelRow}>
-                    <Text style={styles.infoLabel}>Date de naissance</Text>
-                    {savingBirthDate && (
-                      <Text style={styles.savingText}>Enregistrement…</Text>
-                    )}
+              {/* Date de naissance — une seule saisie possible */}
+              {client.birth_date ? (
+                <View style={[styles.infoRow]}>
+                  <View style={styles.infoIconBox}>
+                    <Ionicons name="calendar-outline" size={16} color={colors.dark.muted} />
                   </View>
-                  <DatePicker
-                    theme="dark"
-                    value={birthDate}
-                    onChange={handleBirthDateChange}
-                    placeholder={birthDate ? undefined : 'Ajouter'}
-                    maxYear={new Date().getFullYear() - 10}
-                  />
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoLabel}>Date de naissance</Text>
+                    <Text style={styles.infoValue}>
+                      {new Date(client.birth_date + 'T00:00:00').toLocaleDateString('fr-FR')}
+                    </Text>
+                  </View>
+                  <Ionicons name="lock-closed-outline" size={14} color={colors.dark.subtle ?? colors.dark.muted} />
                 </View>
-              </View>
+              ) : (
+                <View style={[styles.infoRow, styles.birthRow]}>
+                  <View style={styles.infoIconBox}>
+                    <Ionicons name="calendar-outline" size={16} color={colors.dark.muted} />
+                  </View>
+                  <View style={styles.infoContent}>
+                    <View style={styles.birthLabelRow}>
+                      <Text style={styles.infoLabel}>Date de naissance</Text>
+                      {savingBirthDate && <Text style={styles.savingText}>Enregistrement…</Text>}
+                    </View>
+                    <DatePicker
+                      theme="dark"
+                      value={birthDate}
+                      onChange={handleBirthDateChange}
+                      placeholder="Ajouter (définitive)"
+                      maxYear={new Date().getFullYear() - 10}
+                    />
+                  </View>
+                </View>
+              )}
             </View>
 
             {/* ── Preferences ───────────────────── */}
