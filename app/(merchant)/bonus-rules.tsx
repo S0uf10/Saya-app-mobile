@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useAuth } from '../../src/context/AuthContext'
 import { supabase } from '../../src/lib/supabase'
 import { BonusRule, BonusRuleType } from '../../src/types'
+import { DatePicker, TimePicker } from '../../src/components/ui/DatePicker'
 import { colors, radius, fontSize, fontWeight, shadows } from '../../src/theme'
 import { EmptyState } from '../../src/components/ui/EmptyState'
 import { Button } from '../../src/components/ui/Button'
@@ -335,21 +336,22 @@ export default function BonusRulesScreen() {
 
                 {/* Champs conditionnels */}
                 {form.rule_type === 'happy_hour' && (
-                  <View>
-                    <Text style={styles.fieldLabel}>Créneau horaire (HH:MM)</Text>
-                    <View style={styles.timeRow}>
-                      <View style={styles.timeField}>
-                        <Text style={styles.timeFieldLabel}>De</Text>
-                        <Input theme="light" placeholder="12:00" value={form.time_start}
-                          onChangeText={v => setForm(f => ({ ...f, time_start: v }))}
-                          keyboardType="numbers-and-punctuation" />
-                      </View>
-                      <View style={styles.timeField}>
-                        <Text style={styles.timeFieldLabel}>À</Text>
-                        <Input theme="light" placeholder="14:00" value={form.time_end}
-                          onChangeText={v => setForm(f => ({ ...f, time_end: v }))}
-                          keyboardType="numbers-and-punctuation" />
-                      </View>
+                  <View style={styles.timeRow}>
+                    <View style={styles.timeField}>
+                      <TimePicker
+                        label="Début"
+                        theme="light"
+                        value={form.time_start}
+                        onChange={v => setForm(f => ({ ...f, time_start: v }))}
+                      />
+                    </View>
+                    <View style={styles.timeField}>
+                      <TimePicker
+                        label="Fin"
+                        theme="light"
+                        value={form.time_end}
+                        onChange={v => setForm(f => ({ ...f, time_end: v }))}
+                      />
                     </View>
                   </View>
                 )}
@@ -376,12 +378,22 @@ export default function BonusRulesScreen() {
 
                 {form.rule_type === 'flash_offer' && (
                   <>
-                    <Input label="Date de début (AAAA-MM-JJ) *" theme="light" placeholder="2026-06-01"
-                      value={form.date_start} onChangeText={v => setForm(f => ({ ...f, date_start: v }))}
-                      keyboardType="numbers-and-punctuation" />
-                    <Input label="Date de fin (AAAA-MM-JJ) *" theme="light" placeholder="2026-06-30"
-                      value={form.date_end} onChangeText={v => setForm(f => ({ ...f, date_end: v }))}
-                      keyboardType="numbers-and-punctuation" />
+                    <DatePicker
+                      label="Date de début *"
+                      theme="light"
+                      value={form.date_start}
+                      onChange={v => setForm(f => ({ ...f, date_start: v }))}
+                      minYear={new Date().getFullYear()}
+                      maxYear={new Date().getFullYear() + 5}
+                    />
+                    <DatePicker
+                      label="Date de fin *"
+                      theme="light"
+                      value={form.date_end}
+                      onChange={v => setForm(f => ({ ...f, date_end: v }))}
+                      minYear={new Date().getFullYear()}
+                      maxYear={new Date().getFullYear() + 5}
+                    />
                   </>
                 )}
 
@@ -475,9 +487,8 @@ const styles = StyleSheet.create({
   chipTextSelected: { color: colors.primary },
 
   // Happy hour time row
-  timeRow:       { flexDirection: 'row', gap: 12 },
-  timeField:     { flex: 1 },
-  timeFieldLabel:{ fontSize: fontSize.xs, color: colors.light.muted, marginBottom: 4 },
+  timeRow:  { flexDirection: 'row', gap: 12 },
+  timeField:{ flex: 1 },
 
   // Days row
   daysRow:         { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },

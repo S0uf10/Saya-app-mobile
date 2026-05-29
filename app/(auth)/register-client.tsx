@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
 import { Input } from '../../src/components/ui/Input'
+import { DatePicker } from '../../src/components/ui/DatePicker'
 import { Button } from '../../src/components/ui/Button'
 import { colors, gradients, radius, fontSize, fontWeight, spacing } from '../../src/theme'
 import 'react-native-get-random-values'
@@ -167,12 +168,12 @@ export default function RegisterClientScreen() {
                   onChangeText={setPhone}
                 />
 
-                <Input
+                <DatePicker
                   label="Date de naissance (optionnel)"
                   theme="dark"
-                  placeholder="AAAA-MM-JJ"
                   value={birthDate}
-                  onChangeText={setBirthDate}
+                  onChange={setBirthDate}
+                  maxYear={new Date().getFullYear() - 10}
                 />
               </View>
 
