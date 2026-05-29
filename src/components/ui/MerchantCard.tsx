@@ -4,9 +4,40 @@ import { Ionicons } from '@expo/vector-icons'
 import { colors, radius, fontSize, fontWeight } from '../../theme'
 import { ProgressBar } from './ProgressBar'
 import { openNavigationTo } from '../../services/navigation'
-import type { Reward, OpeningHours } from '../../types'
+import type { Reward, OpeningHours, BonusRule, BonusRuleType } from '../../types'
 
 const PREVIEW_COUNT = 2
+
+const BONUS_META: Record<BonusRuleType, {
+  icon: React.ComponentProps<typeof Ionicons>['name']
+  color: string
+  bg: string
+}> = {
+  birthday:            { icon: 'gift-outline',       color: '#f472b6', bg: 'rgba(244,114,182,0.18)' },
+  first_visit:         { icon: 'person-add-outline', color: '#4ade80', bg: 'rgba(74,222,128,0.18)'  },
+  loyalty_anniversary: { icon: 'calendar-outline',   color: '#60a5fa', bg: 'rgba(96,165,250,0.18)'  },
+  happy_hour:          { icon: 'time-outline',        color: '#fb923c', bg: 'rgba(251,146,60,0.18)'  },
+  day_of_week:         { icon: 'star-outline',        color: '#c084fc', bg: 'rgba(192,132,252,0.18)' },
+  flash_offer:         { icon: 'flash-outline',       color: '#fbbf24', bg: 'rgba(251,191,36,0.18)'  },
+}
+
+const DAYS_FR = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+
+function formatBonusSub(rule: BonusRule): string {
+  switch (rule.rule_type) {
+    case 'birthday':            return 'Le jour de ton anniversaire'
+    case 'first_visit':         return 'À ta première visite'
+    case 'loyalty_anniversary': return 'Chaque anniversaire de fidélité'
+    case 'happy_hour':          return `De ${rule.time_start} à ${rule.time_end}`
+    case 'day_of_week':         return (rule.days_of_week ?? []).map(d => DAYS_FR[d]).join(', ')
+    case 'flash_offer': {
+      if (!rule.date_start || !rule.date_end) return ''
+      const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
+      return `Du ${fmt(rule.date_start)} au ${fmt(rule.date_end)}`
+    }
+    default: return ''
+  }
+}
 
 function getOpenStatus(hours: OpeningHours | null | undefined): 'open' | 'closed' | 'unknown' {
   if (!hours) return 'unknown'
@@ -40,6 +71,7 @@ interface MerchantCardProps {
   openingHours?: OpeningHours | null
   rewards: Reward[]
   availableRewards: Reward[]
+  bonusRules?: BonusRule[]
 }
 
 export function MerchantCard({
@@ -52,8 +84,10 @@ export function MerchantCard({
   openingHours,
   rewards,
   availableRewards,
+  bonusRules = [],
 }: MerchantCardProps) {
   const [expanded, setExpanded] = useState(false)
+  const [bonusExpanded, setBonusExpanded] = useState(false)
   const openStatus = getOpenStatus(openingHours)
   const isOpen = openStatus === 'open'
 
@@ -209,6 +243,58 @@ export function MerchantCard({
           )}
         </View>
       )}
+
+      {/* ── Bonus actifs ─────────────────────── */}
+      {bonusRules.length > 0 && (
+        <View style={styles.bonusSection}>
+          <TouchableOpacity
+            style={styles.bonusHeader}
+            onPress={() => setBonusExpanded(e => !e)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.bonusHeaderLeft}>
+              <View style={styles.bonusIconBox}>
+                <Ionicons name="flash" size={11} color={colors.primary} />
+              </View>
+              <Text style={styles.bonusTitle}>Bonus actifs</Text>
+              <View style={styles.bonusCountBadge}>
+                <Text style={styles.bonusCountText}>{bonusRules.length}</Text>
+              </View>
+            </View>
+            <Ionicons
+              name={bonusExpanded ? 'chevron-up' : 'chevron-down'}
+              size={14}
+              color={colors.dark.muted}
+            />
+          </TouchableOpacity>
+
+          {bonusExpanded && (
+            <View style={styles.bonusList}>
+              {bonusRules.map(rule => {
+                const meta = BONUS_META[rule.rule_type as BonusRuleType]
+                if (!meta) return null
+                const bonusStr = rule.bonus_type === 'points'
+                  ? `+${rule.bonus_points} pts`
+                  : `×${rule.bonus_multiplier}`
+                return (
+                  <View key={rule.id} style={styles.bonusItem}>
+                    <View style={[styles.bonusItemIcon, { backgroundColor: meta.bg }]}>
+                      <Ionicons name={meta.icon} size={14} color={meta.color} />
+                    </View>
+                    <View style={styles.bonusItemInfo}>
+                      <Text style={styles.bonusItemName} numberOfLines={1}>{rule.name}</Text>
+                      <Text style={styles.bonusItemSub}>{formatBonusSub(rule)}</Text>
+                    </View>
+                    <View style={styles.bonusItemBadge}>
+                      <Text style={styles.bonusItemBadgeText}>{bonusStr}</Text>
+                    </View>
+                  </View>
+                )
+              })}
+            </View>
+          )}
+        </View>
+      )}
     </View>
   )
 }
@@ -322,4 +408,90 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   expandBtnText: { fontSize: fontSize.xs, color: colors.dark.muted },
+
+  // Bonus section
+  bonusSection: {
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.07)',
+    paddingTop: 10,
+    gap: 8,
+  },
+  bonusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bonusHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  bonusIconBox: {
+    width: 20, height: 20,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(168,85,247,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bonusTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.dark.muted,
+  },
+  bonusCountBadge: {
+    backgroundColor: 'rgba(168,85,247,0.20)',
+    borderRadius: radius.full,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(168,85,247,0.30)',
+  },
+  bonusCountText: {
+    fontSize: 10,
+    fontWeight: fontWeight.bold,
+    color: colors.primaryLight,
+  },
+  bonusList: { gap: 6 },
+  bonusItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  bonusItemIcon: {
+    width: 30, height: 30,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  bonusItemInfo: { flex: 1, gap: 2 },
+  bonusItemName: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.dark.text,
+  },
+  bonusItemSub: {
+    fontSize: fontSize.xs,
+    color: colors.dark.muted,
+  },
+  bonusItemBadge: {
+    backgroundColor: 'rgba(168,85,247,0.15)',
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(168,85,247,0.25)',
+  },
+  bonusItemBadgeText: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+    color: colors.primaryLight,
+  },
 })

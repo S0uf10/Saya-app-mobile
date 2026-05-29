@@ -17,9 +17,10 @@ import { useRouter } from 'expo-router'
 import QRCode from 'react-native-qrcode-svg'
 import { Ionicons } from '@expo/vector-icons'
 import { useAuth } from '../../src/context/AuthContext'
+import { ScreenState } from '../../src/components/ui/ScreenState'
 import { supabase } from '../../src/lib/supabase'
 import { calculateLevelProgress } from '../../src/lib/levels'
-import { LoyaltyRelation, Reward } from '../../src/types'
+import { LoyaltyRelation, Reward, BonusRule } from '../../src/types'
 import {
   colors,
   gradients,
@@ -46,12 +47,13 @@ const APP_URL = process.env.EXPO_PUBLIC_APP_URL ?? 'https://www.saya-card.com'
 
 interface RelationWithRewards extends LoyaltyRelation {
   rewards: Reward[]
+  bonusRules: BonusRule[]
 }
 
 type WalletLoading = 'apple' | 'google' | 'samsung' | null
 
 export default function ClientDashboard() {
-  const { client, refreshProfile } = useAuth()
+  const { client, loading: authLoading, refreshProfile } = useAuth()
   const router = useRouter()
   const [relations, setRelations] = useState<RelationWithRewards[]>([])
   const [loading, setLoading] = useState(true)
@@ -66,7 +68,10 @@ export default function ClientDashboard() {
   }, [client?.level_alert])
 
   const loadData = useCallback(async () => {
-    if (!client) return
+    if (!client) {
+      setLoading(false)
+      return
+    }
     try {
       const { data: relData } = await supabase
         .from('loyalty_relations')
@@ -78,13 +83,11 @@ export default function ClientDashboard() {
 
       const enriched: RelationWithRewards[] = await Promise.all(
         relData.map(async (rel) => {
-          const { data: rewardsData } = await supabase
-            .from('rewards')
-            .select('*')
-            .eq('merchant_id', rel.merchant_id)
-            .eq('is_active', true)
-            .order('points_cost', { ascending: true })
-          return { ...rel, rewards: rewardsData ?? [] }
+          const [{ data: rewardsData }, { data: bonusData }] = await Promise.all([
+            supabase.from('rewards').select('*').eq('merchant_id', rel.merchant_id).eq('is_active', true).order('points_cost', { ascending: true }),
+            supabase.from('bonus_rules').select('id, name, rule_type, bonus_type, bonus_points, bonus_multiplier, time_start, time_end, days_of_week, date_start, date_end').eq('merchant_id', rel.merchant_id).eq('is_active', true),
+          ])
+          return { ...rel, rewards: rewardsData ?? [], bonusRules: bonusData ?? [] }
         })
       )
       setRelations(enriched)
@@ -125,10 +128,25 @@ export default function ClientDashboard() {
     }
   }
 
-  if (!client) {
+  if (authLoading) {
     return (
       <LinearGradient colors={gradients.clientBg} style={styles.loader}>
         <ActivityIndicator color={colors.primary} size="large" />
+      </LinearGradient>
+    )
+  }
+
+  if (!client) {
+    return (
+      <LinearGradient colors={gradients.clientBg} style={styles.loader}>
+        <ScreenState
+          loading={false}
+          error="Impossible de charger votre profil client."
+          onRetry={refreshProfile}
+          bgColor="transparent"
+        >
+          {null}
+        </ScreenState>
       </LinearGradient>
     )
   }
@@ -417,6 +435,7 @@ export default function ClientDashboard() {
                         openingHours={merchant.opening_hours}
                         rewards={rel.rewards}
                         availableRewards={availableRewards}
+                        bonusRules={rel.bonusRules}
                       />
                     )
                   })}
