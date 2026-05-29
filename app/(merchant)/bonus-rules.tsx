@@ -144,6 +144,12 @@ export default function BonusRulesScreen() {
     if (form.rule_type === 'flash_offer' && (!form.date_start || !form.date_end)) {
       Alert.alert('Erreur', 'Les dates de début et fin sont requises.'); return
     }
+    if (form.rule_type === 'flash_offer' && form.date_start && form.date_end && form.date_start >= form.date_end) {
+      Alert.alert('Erreur', 'La date de fin doit être après la date de début.'); return
+    }
+    if (form.rule_type === 'happy_hour' && form.time_start >= form.time_end) {
+      Alert.alert('Erreur', 'L\'heure de fin doit être après l\'heure de début.'); return
+    }
 
     setSaving(true)
     try {
